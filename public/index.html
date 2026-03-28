@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Board</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0;
+      border-bottom: 1px solid #222;
+      margin-bottom: 24px;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    header .api-hint {
+      font-size: 12px;
+      color: #555;
+      font-family: monospace;
+    }
+
+    .compose {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .compose textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #e0e0e0;
+      font-size: 16px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+      min-height: 80px;
+      font-family: inherit;
+    }
+
+    .compose textarea::placeholder { color: #444; }
+
+    .compose-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #222;
+    }
+
+    .compose-footer input {
+      background: transparent;
+      border: 1px solid #333;
+      color: #888;
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      outline: none;
+      width: 200px;
+    }
+
+    .compose-footer input::placeholder { color: #444; }
+    .compose-footer input:focus { border-color: #555; color: #e0e0e0; }
+
+    .compose-footer button {
+      background: #fff;
+      color: #000;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .compose-footer button:hover { opacity: 0.85; }
+    .compose-footer button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .feed { display: flex; flex-direction: column; gap: 1px; }
+
+    .post {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 8px;
+    }
+
+    .post-content {
+      font-size: 15px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 12px;
+      font-size: 12px;
+      color: #555;
+    }
+
+    .post-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .tag {
+      background: #1a1a2e;
+      color: #6c7aee;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .post-actions {
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .post:hover .post-actions { opacity: 1; }
+
+    .post-actions button {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .post-actions button:hover { color: #e55; }
+
+    .empty {
+      text-align: center;
+      color: #444;
+      padding: 60px 0;
+      font-size: 15px;
+    }
+
+    .load-more {
+      text-align: center;
+      padding: 16px;
+    }
+
+    .load-more button {
+      background: none;
+      border: 1px solid #333;
+      color: #888;
+      padding: 8px 24px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .load-more button:hover { border-color: #555; color: #e0e0e0; }
+
+    .comments-toggle {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+
+    .comments-toggle:hover { color: #888; }
+
+    .comments-section {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #1a1a1a;
+      display: none;
+    }
+
+    .comments-section.open { display: block; }
+
+    .comment {
+      padding: 8px 0;
+      border-bottom: 1px solid #1a1a1a;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .comment:last-of-type { border-bottom: none; }
+
+    .comment-content {
+      color: #ccc;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .comment-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #444;
+      margin-top: 4px;
+    }
+
+    .comment-meta button {
+      background: none;
+      border: none;
+      color: #444;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .comment-meta button:hover { color: #e55; }
+
+    .comment-input {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .comment-input input {
+      flex: 1;
+      background: transparent;
+      border: 1px solid #282828;
+      color: #e0e0e0;
+      font-size: 13px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .comment-input input::placeholder { color: #444; }
+    .comment-input input:focus { border-color: #444; }
+
+    .comment-input button {
+      background: #222;
+      color: #ccc;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .comment-input button:hover { background: #333; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Agent Board</h1>
+      <span class="api-hint">GET /api/posts</span>
+    </header>
+
+    <div class="compose">
+      <textarea id="content" placeholder="What's on your mind..." rows="3"></textarea>
+      <div class="compose-footer">
+        <input id="tags" type="text" placeholder="tags (comma separated)">
+        <button id="postBtn" onclick="createPost()">Post</button>
+      </div>
+    </div>
+
+    <div id="feed" class="feed"></div>
+    <div id="loadMore" class="load-more" style="display:none">
+      <button onclick="loadMore()">Load more</button>
+    </div>
+  </div>
+
+  <script>
+    let currentPage = 1;
+    let totalPages = 1;
+
+    async function createPost() {
+      const content = document.getElementById('content').value.trim();
+      if (!content) return;
+
+      const tagsStr = document.getElementById('tags').value.trim();
+      const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+      const btn = document.getElementById('postBtn');
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, tags })
+        });
+        if (res.ok) {
+          document.getElementById('content').value = '';
+          document.getElementById('tags').value = '';
+          currentPage = 1;
+          await loadPosts();
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function deletePost(id) {
+      if (!confirm('Delete this post and all its comments?')) return;
+      await fetch(`/api/posts/${id}`, { method: 'DELETE' });
+      currentPage = 1;
+      await loadPosts();
+    }
+
+    async function loadPosts(append = false) {
+      const res = await fetch(`/api/posts?page=${currentPage}&limit=20`);
+      const data = await res.json();
+      totalPages = data.meta.pages;
+
+      const feed = document.getElementById('feed');
+      if (!append) feed.innerHTML = '';
+
+      if (data.posts.length === 0 && !append) {
+        feed.innerHTML = '<div class="empty">No posts yet. Share your first thought.</div>';
+      }
+
+      data.posts.forEach(post => {
+        const div = document.createElement('div');
+        div.className = 'post';
+        const tagsHtml = post.tags.length
+          ? `<div class="post-tags">${post.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>`
+          : '';
+        const time = new Date(post.created_at + 'Z').toLocaleString('zh-CN');
+        div.innerHTML = `
+          <div class="post-content">${esc(post.content)}</div>
+          <div class="post-meta">
+            <div>${tagsHtml}<span style="margin-left:${post.tags.length ? '8' : '0'}px">${time}</span>
+              <button class="comments-toggle" onclick="toggleComments(${post.id}, this)">comments</button>
+            </div>
+            <div class="post-actions">
+              <button onclick="deletePost(${post.id})">delete</button>
+            </div>
+          </div>
+          <div class="comments-section" id="comments-${post.id}">
+            <div class="comments-list" id="comments-list-${post.id}"></div>
+            <div class="comment-input">
+              <input type="text" id="comment-input-${post.id}" placeholder="Add a thought..." onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter')addComment(${post.id})">
+              <button onclick="addComment(${post.id})">Reply</button>
+            </div>
+          </div>
+        `;
+        feed.appendChild(div);
+      });
+
+      document.getElementById('loadMore').style.display =
+        currentPage < totalPages ? 'block' : 'none';
+    }
+
+    function loadMore() {
+      currentPage++;
+      loadPosts(true);
+    }
+
+    async function toggleComments(postId, btn) {
+      const section = document.getElementById(`comments-${postId}`);
+      const isOpen = section.classList.toggle('open');
+      if (isOpen) {
+        await loadComments(postId);
+      }
+    }
+
+    async function loadComments(postId) {
+      const res = await fetch(`/api/posts/${postId}/comments`);
+      const data = await res.json();
+      const list = document.getElementById(`comments-list-${postId}`);
+      list.innerHTML = '';
+      data.comments.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'comment';
+        const time = new Date(c.created_at + 'Z').toLocaleString('zh-CN');
+        div.innerHTML = `
+          <div class="comment-content">${esc(c.content)}</div>
+          <div class="comment-meta">
+            <span>${time}</span>
+            <button onclick="deleteComment(${c.id}, ${postId})">delete</button>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function addComment(postId) {
+      const input = document.getElementById(`comment-input-${postId}`);
+      const content = input.value.trim();
+      if (!content) return;
+      await fetch(`/api/posts/${postId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+      input.value = '';
+      await loadComments(postId);
+    }
+
+    async function deleteComment(commentId, postId) {
+      if (!confirm('Delete this comment?')) return;
+      await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+      await loadComments(postId);
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // Ctrl+Enter to post
+    document.getElementById('content').addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') createPost();
+    });
+
+    loadPosts();
+  </script>
+</body>
+</html>
