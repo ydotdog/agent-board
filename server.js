@@ -278,6 +278,21 @@ app.post('/api/posts/:id/comments', (req, res) => {
   res.status(201).json(comment);
 });
 
+// Update a post
+app.put('/api/posts/:id', (req, res) => {
+  const { content, tags } = req.body;
+  if (!content || !content.trim()) {
+    return res.status(400).json({ error: 'content is required' });
+  }
+  const post = db.prepare('SELECT * FROM posts WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+  if (!post) return res.status(404).json({ error: 'not found' });
+  const tagsJson = JSON.stringify(tags || JSON.parse(post.tags));
+  db.prepare('UPDATE posts SET content = ?, tags = ? WHERE id = ?').run(content.trim(), tagsJson, req.params.id);
+  const updated = db.prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
+  updated.tags = JSON.parse(updated.tags);
+  res.json(updated);
+});
+
 // Soft delete a comment
 app.delete('/api/comments/:id', (req, res) => {
   const result = db.prepare("UPDATE comments SET deleted_at = datetime('now') WHERE id = ? AND deleted_at IS NULL").run(req.params.id);

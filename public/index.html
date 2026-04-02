@@ -196,6 +196,62 @@
     }
 
     .post-actions button:hover { color: var(--delete-hover); }
+    .post-actions button.edit-btn:hover { color: var(--text); }
+
+    .edit-area {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--input-border);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      resize: none;
+      outline: none;
+      min-height: 60px;
+      font-family: inherit;
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .edit-area:focus { border-color: var(--input-border-focus); }
+
+    .edit-tags {
+      background: transparent;
+      border: 1px solid var(--input-border);
+      color: var(--input-text);
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      outline: none;
+      margin-top: 8px;
+      width: 200px;
+    }
+
+    .edit-tags:focus { border-color: var(--input-border-focus); color: var(--text); }
+
+    .edit-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .edit-actions button {
+      border: none;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .edit-actions .save-btn {
+      background: var(--btn-bg);
+      color: var(--btn-text);
+    }
+
+    .edit-actions .cancel-btn {
+      background: var(--btn-secondary-bg);
+      color: var(--btn-secondary-text);
+    }
 
     .empty {
       text-align: center;
@@ -394,6 +450,7 @@
               <button class="comments-toggle" onclick="toggleComments(${post.id}, this)">comments</button>
             </div>
             <div class="post-actions">
+              <button class="edit-btn" onclick="startEdit(${post.id})">edit</button>
               <button onclick="deletePost(${post.id})">delete</button>
             </div>
           </div>
@@ -462,6 +519,72 @@
       if (!confirm('Delete this comment?')) return;
       await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
       await loadComments(postId);
+    }
+
+    async function startEdit(postId) {
+      const res = await fetch(`/api/posts/${postId}`);
+      const post = await res.json();
+      const postEl = document.querySelector(`#comments-${postId}`).parentElement;
+      const contentEl = postEl.querySelector('.post-content');
+      const metaEl = postEl.querySelector('.post-meta');
+
+      const origContent = contentEl.innerHTML;
+      const origMeta = metaEl.innerHTML;
+
+      const textarea = document.createElement('textarea');
+      textarea.className = 'edit-area';
+      textarea.value = post.content;
+      contentEl.replaceWith(textarea);
+      textarea.style.height = textarea.scrollHeight + 'px';
+      textarea.focus();
+
+      const tagsInput = document.createElement('input');
+      tagsInput.className = 'edit-tags';
+      tagsInput.placeholder = 'tags (comma separated)';
+      tagsInput.value = post.tags.join(', ');
+
+      const actions = document.createElement('div');
+      actions.className = 'edit-actions';
+      actions.innerHTML = '<button class="save-btn">Save</button><button class="cancel-btn">Cancel</button>';
+
+      metaEl.innerHTML = '';
+      metaEl.style.flexDirection = 'column';
+      metaEl.style.alignItems = 'flex-start';
+      metaEl.appendChild(tagsInput);
+      metaEl.appendChild(actions);
+
+      textarea.addEventListener('keydown', e => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') save();
+      });
+
+      actions.querySelector('.cancel-btn').onclick = cancel;
+      actions.querySelector('.save-btn').onclick = save;
+
+      function cancel() {
+        const newContent = document.createElement('div');
+        newContent.className = 'post-content';
+        newContent.innerHTML = origContent;
+        textarea.replaceWith(newContent);
+        metaEl.innerHTML = origMeta;
+        metaEl.style.flexDirection = '';
+        metaEl.style.alignItems = '';
+      }
+
+      async function save() {
+        const newText = textarea.value.trim();
+        if (!newText) return;
+        const tagsStr = tagsInput.value.trim();
+        const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const r = await fetch(`/api/posts/${postId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: newText, tags })
+        });
+        if (r.ok) {
+          currentPage = 1;
+          await loadPosts();
+        }
+      }
     }
 
     function esc(s) {
