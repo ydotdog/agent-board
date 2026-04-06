@@ -2,7 +2,6 @@
 
 A personal idea board with AI-powered comments. Post thoughts, tag them, and get instant feedback from multiple Claude models.
 
-**Live:** [ab.y.dog](https://ab.y.dog)
 
 ## Features
 
