@@ -367,6 +367,144 @@
     }
 
     .comment-input button:hover { opacity: 0.8; }
+
+    /* Todo Panel */
+    .todo-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (min-width: 1200px) {
+      .todo-panel {
+        position: fixed;
+        top: 60px;
+        right: calc(50% + 330px);
+        width: 280px;
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
+        margin-bottom: 0;
+      }
+      .todo-panel::-webkit-scrollbar { width: 3px; }
+      .todo-panel::-webkit-scrollbar-thumb { background: var(--input-border); border-radius: 2px; }
+    }
+
+    .todo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .todo-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+    }
+
+    .todo-count {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    .todo-list { display: flex; flex-direction: column; }
+
+    .todo-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .todo-item:last-child { border-bottom: none; }
+
+    .todo-check {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid var(--input-border);
+      border-radius: 3px;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      margin-top: 1px;
+      background: transparent;
+      transition: all 0.15s;
+    }
+
+    .todo-check:checked {
+      background: var(--text-muted);
+      border-color: var(--text-muted);
+    }
+
+    .todo-check:checked::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 1px;
+      width: 5px;
+      height: 9px;
+      border: solid var(--card-bg);
+      border-width: 0 1.5px 1.5px 0;
+      transform: rotate(45deg);
+    }
+
+    .todo-text {
+      flex: 1;
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--text);
+      word-break: break-word;
+    }
+
+    .todo-item.completed .todo-text {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    .todo-date {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .todo-item.overdue .todo-date { color: var(--delete-hover); }
+    .todo-item.overdue .todo-check { border-color: var(--delete-hover); }
+
+    .todo-delete {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity 0.15s;
+      padding: 0 2px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .todo-item:hover .todo-delete { opacity: 1; }
+    .todo-delete:hover { color: var(--delete-hover); }
+
+    .todo-divider {
+      border: none;
+      border-top: 1px dashed var(--border-light);
+      margin: 4px 0;
+    }
+
+    .compose.todo-mode { border-color: var(--tag-text); }
+    .compose.todo-mode .compose-footer input { display: none; }
   </style>
 </head>
 <body>
@@ -382,6 +520,14 @@
         <input id="tags" type="text" placeholder="tags (comma separated)">
         <button id="postBtn" onclick="createPost()">Post</button>
       </div>
+    </div>
+
+    <div class="todo-panel" id="todoPanel" style="display:none">
+      <div class="todo-header">
+        <span class="todo-title">Todos</span>
+        <span class="todo-count" id="todoCount"></span>
+      </div>
+      <div class="todo-list" id="todoList"></div>
     </div>
 
     <div id="feed" class="feed"></div>
@@ -402,6 +548,10 @@
     async function createPost() {
       const content = document.getElementById('content').value.trim();
       if (!content) return;
+
+      // Check for /todo command
+      const todos = parseTodos(content);
+      if (todos) return createTodos(todos);
 
       const tagsStr = document.getElementById('tags').value.trim();
       const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
@@ -604,14 +754,157 @@
       return d.innerHTML;
     }
 
+    // --- Todo functions ---
+    function parseTodoDate(token) {
+      let match;
+      if ((match = token.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/))) {
+        const [, y, m, d] = match;
+        if (+m >= 1 && +m <= 12 && +d >= 1 && +d <= 31) return new Date(+y, +m - 1, +d);
+      }
+      if ((match = token.match(/^(\d{1,2})\.(\d{1,2})$/))) {
+        const [, m, d] = match;
+        if (+m >= 1 && +m <= 12 && +d >= 1 && +d <= 31) return new Date(new Date().getFullYear(), +m - 1, +d);
+      }
+      if ((match = token.match(/^\+(\d+)$/))) {
+        const dt = new Date();
+        dt.setDate(dt.getDate() + +match[1]);
+        return dt;
+      }
+      return null;
+    }
+
+    function fmtDateStr(d) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function parseTodos(content) {
+      const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+      if (!lines[0] || !lines[0].startsWith('/todo')) return null;
+      const todos = [];
+      for (const line of lines) {
+        if (!line.startsWith('/todo ')) continue;
+        const rest = line.substring(6).trim();
+        if (!rest) continue;
+        const parts = rest.split(/\s+/);
+        const parsed = parseTodoDate(parts[0]);
+        if (parsed && parts.length > 1) {
+          todos.push({ content: parts.slice(1).join(' '), due_date: fmtDateStr(parsed) });
+        } else {
+          todos.push({ content: rest, due_date: fmtDateStr(new Date()) });
+        }
+      }
+      return todos.length > 0 ? todos : null;
+    }
+
+    async function createTodos(todos) {
+      const btn = document.getElementById('postBtn');
+      btn.disabled = true;
+      try {
+        await fetch('/api/todos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(todos)
+        });
+        document.getElementById('content').value = '';
+        document.getElementById('content').style.height = 'auto';
+        document.getElementById('tags').value = '';
+        document.querySelector('.compose').classList.remove('todo-mode');
+        btn.textContent = 'Post';
+        await loadTodos();
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadTodos() {
+      const res = await fetch('/api/todos');
+      const data = await res.json();
+      const panel = document.getElementById('todoPanel');
+      const list = document.getElementById('todoList');
+      const count = document.getElementById('todoCount');
+
+      if (data.todos.length === 0) { panel.style.display = 'none'; return; }
+      panel.style.display = '';
+
+      const today = fmtDateStr(new Date());
+      const incomplete = data.todos.filter(t => !t.completed);
+      const completed = data.todos.filter(t => t.completed)
+        .sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || ''));
+
+      count.textContent = `${completed.length}/${data.todos.length}`;
+      list.innerHTML = '';
+
+      incomplete.forEach(t => {
+        const overdue = t.due_date < today;
+        const isToday = t.due_date === today;
+        const div = document.createElement('div');
+        div.className = `todo-item${overdue ? ' overdue' : ''}`;
+        let dateLabel = '';
+        if (!isToday) {
+          const [, m, d] = t.due_date.split('-');
+          dateLabel = `${+m}.${+d}`;
+        }
+        div.innerHTML = `
+          <input type="checkbox" class="todo-check" onchange="toggleTodo(${t.id}, this.checked)">
+          <span class="todo-text">${esc(t.content)}</span>
+          ${dateLabel ? `<span class="todo-date">${dateLabel}</span>` : ''}
+          <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
+        `;
+        list.appendChild(div);
+      });
+
+      if (incomplete.length > 0 && completed.length > 0) {
+        const hr = document.createElement('hr');
+        hr.className = 'todo-divider';
+        list.appendChild(hr);
+      }
+
+      completed.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'todo-item completed';
+        div.innerHTML = `
+          <input type="checkbox" class="todo-check" checked onchange="toggleTodo(${t.id}, this.checked)">
+          <span class="todo-text">${esc(t.content)}</span>
+          <button class="todo-delete" onclick="deleteTodo(${t.id})">×</button>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function toggleTodo(id, completed) {
+      await fetch(`/api/todos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed })
+      });
+      await loadTodos();
+    }
+
+    async function deleteTodo(id) {
+      await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+      await loadTodos();
+    }
+
     // Auto-resize compose textarea
     const contentEl = document.getElementById('content');
-    contentEl.addEventListener('input', () => autoResize(contentEl));
+    contentEl.addEventListener('input', () => {
+      autoResize(contentEl);
+      const compose = contentEl.closest('.compose');
+      const btn = document.getElementById('postBtn');
+      if (contentEl.value.trimStart().startsWith('/todo')) {
+        compose.classList.add('todo-mode');
+        btn.textContent = 'Todo';
+      } else {
+        compose.classList.remove('todo-mode');
+        btn.textContent = 'Post';
+      }
+    });
     contentEl.addEventListener('keydown', e => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') createPost();
     });
 
     loadPosts();
+    loadTodos();
   </script>
 </body>
 </html>

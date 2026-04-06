@@ -321,6 +321,49 @@ app.delete('/api/posts/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Todo API ---
+app.post('/api/todos', (req, res) => {
+  const items = Array.isArray(req.body) ? req.body : [req.body];
+  const stmt = db.prepare('INSERT INTO todos (content, due_date) VALUES (?, ?)');
+  const results = [];
+  for (const { content, due_date } of items) {
+    if (!content?.trim() || !due_date) continue;
+    const r = stmt.run(content.trim(), due_date);
+    results.push(db.prepare('SELECT * FROM todos WHERE id = ?').get(r.lastInsertRowid));
+  }
+  if (results.length === 0) return res.status(400).json({ error: 'no valid todos' });
+  res.status(201).json({ todos: results });
+});
+
+app.get('/api/todos', (req, res) => {
+  const todos = db.prepare('SELECT * FROM todos WHERE deleted_at IS NULL ORDER BY completed ASC, due_date ASC, created_at ASC').all();
+  res.json({ todos });
+});
+
+app.put('/api/todos/:id', (req, res) => {
+  const todo = db.prepare('SELECT * FROM todos WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+  if (!todo) return res.status(404).json({ error: 'not found' });
+  if ('completed' in req.body) {
+    const completed = req.body.completed ? 1 : 0;
+    const completedAt = completed ? new Date().toISOString().replace('T', ' ').split('.')[0] : null;
+    db.prepare('UPDATE todos SET completed = ?, completed_at = ? WHERE id = ?').run(completed, completedAt, req.params.id);
+  }
+  if (req.body.content) {
+    db.prepare('UPDATE todos SET content = ? WHERE id = ?').run(req.body.content.trim(), req.params.id);
+  }
+  if (req.body.due_date) {
+    db.prepare('UPDATE todos SET due_date = ? WHERE id = ?').run(req.body.due_date, req.params.id);
+  }
+  const updated = db.prepare('SELECT * FROM todos WHERE id = ?').get(req.params.id);
+  res.json(updated);
+});
+
+app.delete('/api/todos/:id', (req, res) => {
+  const result = db.prepare("UPDATE todos SET deleted_at = datetime('now') WHERE id = ? AND deleted_at IS NULL").run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'not found' });
+  res.json({ ok: true });
+});
+
 // Bridge health check
 app.get('/api/bridge/health', (req, res) => {
   const url = new URL('/health', BRIDGE_URL);
