@@ -93,6 +93,11 @@ app.use(express.json());
 
 // Login endpoints (before auth middleware)
 app.get('/login', (req, res) => {
+  // If already authenticated, redirect to home
+  const cookies = parseCookies(req.headers.cookie);
+  if (cookies.session && cookies.session === hashToken(AUTH_TOKEN)) {
+    return res.redirect('/');
+  }
   res.send(`<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Agent Board - Login</title>
@@ -127,7 +132,7 @@ async function login(){
 app.post('/api/login', (req, res) => {
   const { token } = req.body;
   if (token === AUTH_TOKEN) {
-    res.setHeader('Set-Cookie', `session=${hashToken(AUTH_TOKEN)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000`);
+    res.setHeader('Set-Cookie', `session=${hashToken(AUTH_TOKEN)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`);
     return res.json({ ok: true });
   }
   res.status(401).json({ error: 'invalid token' });
@@ -160,9 +165,17 @@ app.post('/api/posts', (req, res) => {
   AI_MODELS.forEach(model => {
     generateAIComment(trimmed, model).then(aiComment => {
       if (aiComment) {
-        db.prepare('INSERT INTO comments (post_id, content) VALUES (?, ?)').run(postId, aiComment);
-        console.log(`${model} commented on post #${postId}`);
+        try {
+          db.prepare('INSERT INTO comments (post_id, content) VALUES (?, ?)').run(postId, aiComment);
+          console.log(`${model} commented on post #${postId}`);
+        } catch (err) {
+          console.error(`DB error saving comment for post #${postId} (${model}):`, err.message);
+        }
+      } else {
+        console.warn(`${model} returned no comment for post #${postId}`);
       }
+    }).catch(err => {
+      console.error(`Unexpected error generating comment for post #${postId} (${model}):`, err.message);
     });
   });
 });
@@ -306,6 +319,29 @@ app.delete('/api/posts/:id', (req, res) => {
   if (result.changes === 0) return res.status(404).json({ error: 'not found' });
   db.prepare("UPDATE comments SET deleted_at = datetime('now') WHERE post_id = ? AND deleted_at IS NULL").run(req.params.id);
   res.json({ ok: true });
+});
+
+// Bridge health check
+app.get('/api/bridge/health', (req, res) => {
+  const url = new URL('/health', BRIDGE_URL);
+  const hreq = http.request({
+    hostname: url.hostname,
+    port: url.port,
+    path: url.pathname,
+    method: 'GET',
+    timeout: 5000
+  }, (hres) => {
+    let body = '';
+    hres.on('data', (d) => { body += d; });
+    hres.on('end', () => {
+      res.json({ bridge: hres.statusCode === 200 ? 'ok' : 'error', status: hres.statusCode, url: BRIDGE_URL });
+    });
+  });
+  hreq.on('error', (err) => {
+    res.json({ bridge: 'unreachable', error: err.message, url: BRIDGE_URL });
+  });
+  hreq.on('timeout', () => { hreq.destroy(); res.json({ bridge: 'timeout', url: BRIDGE_URL }); });
+  hreq.end();
 });
 
 app.listen(PORT, () => {
