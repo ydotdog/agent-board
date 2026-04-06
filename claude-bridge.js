@@ -7,9 +7,9 @@ const SYSTEM_PROMPT = 'You are a thoughtful reader of a personal idea board. Rea
 
 function callClaude(content, model) {
   return new Promise((resolve) => {
-    const child = spawn(CLAUDE_BIN, ['-p', content, '--model', model, '--system-prompt', SYSTEM_PROMPT], {
+    const child = spawn(CLAUDE_BIN, ['-p', '--model', model, '--system-prompt', SYSTEM_PROMPT], {
       timeout: 60000,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe']
     });
     let stdout = '';
     child.stdout.on('data', (d) => { stdout += d; });
@@ -18,6 +18,8 @@ function callClaude(content, model) {
       else resolve(stdout.trim());
     });
     child.on('error', () => resolve(null));
+    child.stdin.write(content);
+    child.stdin.end();
   });
 }
 
