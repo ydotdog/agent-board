@@ -7,9 +7,10 @@ const SYSTEM_PROMPT = 'You are a thoughtful reader of a personal idea board. Rea
 
 function callClaude(content, model) {
   return new Promise((resolve) => {
-    const child = spawn(CLAUDE_BIN, ['-p', '--model', model, '--system-prompt', SYSTEM_PROMPT], {
+    const child = spawn(process.execPath, [CLAUDE_BIN, '-p', '--model', model, '--system-prompt', SYSTEM_PROMPT], {
       timeout: 60000,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, PATH: `/opt/homebrew/bin:/opt/homebrew/sbin:${process.env.PATH || '/usr/bin:/bin'}` }
     });
     let stdout = '';
     child.stdout.on('data', (d) => { stdout += d; });
